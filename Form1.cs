@@ -428,7 +428,17 @@ namespace AddonScraper
             sw.Start();
             using (var client = Util.GetWebClient())
             {
-                var data = client.DownloadData(addon.IconUrl);
+                byte[] data;
+                try
+                {
+                    data = client.DownloadData(addon.IconUrl);
+                }
+                catch (WebException e)
+                {
+                    Log("Error saving icon");
+                    Util.Log($@"WebException trying to save b64 icon for {addon.Name} : {e.Message}");
+                    return;
+                }
                 using (var ms = new MemoryStream(data))
                 {
                     var image = Image.FromStream(ms);
