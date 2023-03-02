@@ -242,13 +242,7 @@ namespace AddonScraper
                 addon.Features.Sort();
                 Log(addon.Features.Count == 0 ? @"No features were found." : $@"Found {addon.Features.Count} features");
                 
-                addon.Features = new List<string>(); // feature list
-                var fl = GetFeaturesFromClass(mainClassData);
-                addon.Features.AddRange(fl);
-                addon.Features.Sort();
-                Log(fl.Count == 0 ? @"No features were found." : $@"Found {fl.Count} features");
-                
-                addon.Description = fabricJson.description != null ? (string)fabricJson.description.ToString() : "A Meteor Client Addon"; // description
+                addon.Description = fabricJson.description != null ? (string) fabricJson.description.ToString() : "A Meteor Client Addon"; // description
                 SetIcon(addon, fabricJson); // icon
                 SaveIcon(addon);
                 Thread.Sleep(1500);
