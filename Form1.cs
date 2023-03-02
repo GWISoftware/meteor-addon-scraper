@@ -185,6 +185,8 @@ namespace AddonScraper
                 addon.Name = fabricJson.name != null ? (string) fabricJson.name.ToString() : repoMeta.Name; // addon name
                     
                 string mainClass = fabricJson.entrypoints.meteor[0].ToString();
+                var mainClassName = mainClass.Split('.').Last();
+                var entrypoint = mainClass.Replace($@".{mainClassName}", "");
                 var mainClassData = GetMainClassData(addon, mainClass); // get main class data
                 if (string.IsNullOrEmpty(mainClassData))
                 {
@@ -192,6 +194,53 @@ namespace AddonScraper
                     errors.Add(MakeErrorMeta(addon, "Main class data is invalid"));
                     continue;
                 }
+                
+                addon.Features = new List<string>(); // feature list
+                var fl = GetFeaturesFromClass(mainClassData); // (hopefully) check main class for module list first
+                if (fl.Count <= 0)
+                {
+                    Log("No features were detected in the main class, trying to scrape module list from repo");
+                    var moduleRoot = $@"src/main/java/{entrypoint.Replace('.', '/')}/modules";
+                    Log($@"Expected modules path: {moduleRoot}");
+                    try
+                    {
+                        var rootc = await client.Repository.Content.GetAllContents(addon.RepoMeta.Author,
+                            addon.RepoMeta.Name, moduleRoot); // content list for modules root
+                        Thread.Sleep(1000);
+                        var moduleFs =
+                            rootc.Where(item => item.Type.Equals(ContentType.Dir))
+                                .ToList(); // get all folders from module root
+                        var moduleList =
+                            (from f in moduleFs
+                                where f.Type.Equals(ContentType.File) && f.Name.EndsWith(".java")
+                                select f.Name.Replace(".java", "")).ToList(); // collect top-level modules first
+                        Util.Log($@"Found {moduleList.Count} top-level modules, and {moduleFs.Count} module folders");
+                        Thread.Sleep(1000);
+
+                        foreach (var mf in moduleFs)
+                        {
+                            // collect modules from each (category) folder
+                            Log($@"Scanning {mf.Path} for modules");
+                            var contents = await client.Repository.Content.GetAllContents(addon.RepoMeta.Author,
+                                addon.RepoMeta.Name, mf.Path);
+                            moduleList.AddRange(from moduleFile in contents
+                                where moduleFile.Type.Equals(ContentType.File) && moduleFile.Name.EndsWith(".java")
+                                select moduleFile.Name.Replace(".java", ""));
+                            Thread.Sleep(1000);
+                        }
+
+                        Log($@"Scan returned a total of {moduleList.Count} modules");
+                        addon.Features = moduleList;
+                    }
+                    catch (Exception e2)
+                    {
+                        Log("Exception trying to scrape module list, check logs.");
+                        Util.Log($@"Error trying to scrape modules for {addon.Name} : {e2.Message}");
+                    }
+                }
+                addon.Features.AddRange(fl);
+                addon.Features.Sort();
+                Log(addon.Features.Count == 0 ? @"No features were found." : $@"Found {addon.Features.Count} features");
                 
                 addon.Features = new List<string>(); // feature list
                 var fl = GetFeaturesFromClass(mainClassData);
